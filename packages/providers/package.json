@@ -1,0 +1,65 @@
+{
+  "name": "@openmgr/agent-providers",
+  "version": "0.1.0",
+  "description": "LLM providers for @openmgr/agent (Anthropic, OpenAI, Google, OpenRouter, Groq, xAI)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./anthropic": {
+      "types": "./dist/anthropic.d.ts",
+      "import": "./dist/anthropic.js"
+    },
+    "./openai": {
+      "types": "./dist/openai.d.ts",
+      "import": "./dist/openai.js"
+    },
+    "./google": {
+      "types": "./dist/google.d.ts",
+      "import": "./dist/google.js"
+    },
+    "./openrouter": {
+      "types": "./dist/openrouter.d.ts",
+      "import": "./dist/openrouter.js"
+    },
+    "./groq": {
+      "types": "./dist/groq.d.ts",
+      "import": "./dist/groq.js"
+    },
+    "./xai": {
+      "types": "./dist/xai.d.ts",
+      "import": "./dist/xai.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^1.0.0",
+    "@ai-sdk/google": "^1.0.0",
+    "@ai-sdk/openai": "^1.0.0",
+    "@ai-sdk/xai": "^1.0.0",
+    "@openmgr/agent-core": "workspace:*",
+    "ai": "^4.3.19",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.7",
+    "typescript": "^5.6.0",
+    "vitest": "^4.0.18"
+  },
+  "peerDependencies": {
+    "@openmgr/agent-core": "workspace:*"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "name": "@openmgr/agent-memory",
+  "version": "0.1.0",
+  "description": "Semantic memory with local embeddings for @openmgr/agent",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@openmgr/agent-core": "workspace:*",
+    "@xenova/transformers": "^2.17.2",
+    "better-sqlite3": "^12.6.2"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^22.19.7",
+    "typescript": "^5.8.3",
+    "vitest": "^4.0.0"
+  },
+  "keywords": [
+    "openmgr",
+    "agent",
+    "memory",
+    "embeddings",
+    "semantic-search"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/openmgr/agent.git",
+    "directory": "packages/memory"
+  }
+}
