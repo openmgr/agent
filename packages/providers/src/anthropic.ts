@@ -15,9 +15,9 @@ export class AnthropicProvider extends BaseLLMProvider {
   }
 
   private getClient() {
-    const apiKey = this.auth.apiKey ?? process.env.ANTHROPIC_API_KEY;
+    const apiKey = this.auth.apiKey;
     if (!apiKey) {
-      throw new Error("Anthropic API key not configured. Set ANTHROPIC_API_KEY environment variable or pass apiKey option.");
+      throw new Error("Anthropic API key not configured. Pass apiKey option when creating the provider.");
     }
     return createAnthropic({ apiKey });
   }

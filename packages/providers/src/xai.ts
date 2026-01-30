@@ -12,9 +12,9 @@ export class XAIProvider extends BaseLLMProvider {
   }
 
   private getClient() {
-    const apiKey = this.auth.apiKey ?? process.env.XAI_API_KEY;
+    const apiKey = this.auth.apiKey;
     if (!apiKey) {
-      throw new Error("xAI API key not configured. Set XAI_API_KEY environment variable or pass apiKey option.");
+      throw new Error("xAI API key not configured. Pass apiKey option when creating the provider.");
     }
     return createXai({ apiKey });
   }

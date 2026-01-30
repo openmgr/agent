@@ -2,7 +2,8 @@ import type { Command } from "commander";
 import chalk from "chalk";
 import { existsSync } from "fs";
 import { resolve } from "path";
-import { loadConfig } from "@openmgr/agent-core";
+import { loadConfig } from "@openmgr/agent-config-xdg";
+import type { LspServerConfig } from "@openmgr/agent-core";
 import {
   LspManager,
   DEFAULT_LANGUAGE_SERVERS,
@@ -38,7 +39,8 @@ export function registerLspCommands(program: Command): void {
 
       // Apply config overrides
       if (config.lsp) {
-        for (const [lang, serverConfig] of Object.entries(config.lsp)) {
+        for (const [lang, serverConfigRaw] of Object.entries(config.lsp)) {
+          const serverConfig = serverConfigRaw as LspServerConfig;
           if (servers[lang]) {
             // Override existing
             servers[lang] = {

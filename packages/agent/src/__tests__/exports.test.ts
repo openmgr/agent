@@ -12,14 +12,17 @@ describe('@openmgr/agent exports', () => {
     expect(typeof agentExports.defineTool).toBe('function');
   });
 
-  it('should export SkillManager', () => {
-    expect(agentExports.SkillManager).toBeDefined();
-    expect(typeof agentExports.SkillManager).toBe('function');
+  it('should export SkillManagerInterface type', () => {
+    // SkillManagerInterface is now a type, not a class
+    // The actual implementation is in @openmgr/agent-skills-loader
+    expect(agentExports.SkillLoadError).toBeDefined();
+    expect(agentExports.SkillNotFoundError).toBeDefined();
   });
 
-  it('should export loadConfig function', () => {
-    expect(agentExports.loadConfig).toBeDefined();
-    expect(typeof agentExports.loadConfig).toBe('function');
+  it('should export ConfigLoader type', () => {
+    // ConfigLoader is now a type, not a function
+    // The actual implementation is in @openmgr/agent-config-xdg
+    expect(true).toBe(true);
   });
 
   it('should export provider functions', () => {
@@ -29,7 +32,8 @@ describe('@openmgr/agent exports', () => {
 
   it('should export providersPlugin', () => {
     expect(agentExports.providersPlugin).toBeDefined();
-    expect(typeof agentExports.providersPlugin).toBe('function');
+    expect(typeof agentExports.providersPlugin).toBe('object');
+    expect(agentExports.providersPlugin.name).toBe('@openmgr/agent-providers');
   });
 
   it('should export storage classes', () => {

@@ -168,3 +168,58 @@ export class SkillNotFoundError extends Error {
     this.name = "SkillNotFoundError";
   }
 }
+
+/**
+ * Interface for skill managers.
+ * 
+ * Implementations can load skills from different sources:
+ * - Filesystem (Node.js)
+ * - Bundled assets (React Native)
+ * - Network (remote skills)
+ */
+export interface SkillManagerInterface {
+  /**
+   * Discover available skills
+   */
+  discover(): Promise<SkillReference[]>;
+
+  /**
+   * Get list of discovered skills
+   */
+  getAvailable(): SkillReference[];
+
+  /**
+   * Check if a skill exists
+   */
+  hasSkill(name: string): boolean;
+
+  /**
+   * Get skill reference by name
+   */
+  getSkill(name: string): SkillReference | undefined;
+
+  /**
+   * Load a skill's full content
+   */
+  load(name: string): Promise<LoadedSkill>;
+
+  /**
+   * Generate system prompt section listing available skills
+   */
+  generateSystemPromptSection(): string;
+
+  /**
+   * Generate tool description for the skill loader tool
+   */
+  generateSkillToolDescription(): string;
+
+  /**
+   * Add a path to discover bundled skills from (for plugins)
+   */
+  addBundledPath?(path: string): void;
+
+  /**
+   * Get any warnings about skill overrides
+   */
+  getOverrideWarnings?(): string[];
+}

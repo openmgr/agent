@@ -97,6 +97,9 @@ importers:
       '@openmgr/agent-auth-anthropic':
         specifier: workspace:*
         version: link:../auth-anthropic
+      '@openmgr/agent-config-xdg':
+        specifier: workspace:*
+        version: link:../config-xdg
       '@openmgr/agent-core':
         specifier: workspace:*
         version: link:../core
@@ -115,6 +118,9 @@ importers:
       '@openmgr/agent-skills-bundled':
         specifier: workspace:*
         version: link:../skills-bundled
+      '@openmgr/agent-skills-loader':
+        specifier: workspace:*
+        version: link:../skills-loader
       '@openmgr/agent-storage':
         specifier: workspace:*
         version: link:../storage
@@ -137,6 +143,25 @@ importers:
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
+
+  packages/config-xdg:
+    dependencies:
+      '@openmgr/agent-core':
+        specifier: workspace:*
+        version: link:../core
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^22.19.7
+        version: 22.19.7
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.18
+        version: 4.0.18(@opentelemetry/api@1.9.0)(@types/node@22.19.7)(tsx@4.21.0)(yaml@2.8.2)
 
   packages/core:
     dependencies:
@@ -238,6 +263,9 @@ importers:
       '@openmgr/agent-skills-bundled':
         specifier: workspace:*
         version: link:../skills-bundled
+      '@openmgr/agent-skills-loader':
+        specifier: workspace:*
+        version: link:../skills-loader
       '@openmgr/agent-storage':
         specifier: workspace:*
         version: link:../storage
@@ -274,6 +302,25 @@ importers:
         specifier: ^4.0.0
         version: 4.0.18(@opentelemetry/api@1.9.0)(@types/node@22.19.7)(tsx@4.21.0)(yaml@2.8.2)
 
+  packages/mcp-stdio:
+    dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.25.2
+        version: 1.25.3(hono@4.11.7)(zod@3.25.76)
+      '@openmgr/agent-core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@types/node':
+        specifier: ^22.19.7
+        version: 22.19.7
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.18
+        version: 4.0.18(@opentelemetry/api@1.9.0)(@types/node@22.19.7)(tsx@4.21.0)(yaml@2.8.2)
+
   packages/memory:
     dependencies:
       '@openmgr/agent-core':
@@ -297,6 +344,31 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.0.0
+        version: 4.0.18(@opentelemetry/api@1.9.0)(@types/node@22.19.7)(tsx@4.21.0)(yaml@2.8.2)
+
+  packages/node:
+    dependencies:
+      '@openmgr/agent-config-xdg':
+        specifier: workspace:*
+        version: link:../config-xdg
+      '@openmgr/agent-core':
+        specifier: workspace:*
+        version: link:../core
+      '@openmgr/agent-mcp-stdio':
+        specifier: workspace:*
+        version: link:../mcp-stdio
+      '@openmgr/agent-skills-loader':
+        specifier: workspace:*
+        version: link:../skills-loader
+    devDependencies:
+      '@types/node':
+        specifier: ^22.19.7
+        version: 22.19.7
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.18
         version: 4.0.18(@opentelemetry/api@1.9.0)(@types/node@22.19.7)(tsx@4.21.0)(yaml@2.8.2)
 
   packages/providers:
@@ -364,6 +436,25 @@ importers:
       typescript:
         specifier: ^5.8.3
         version: 5.9.3
+
+  packages/skills-loader:
+    dependencies:
+      '@openmgr/agent-core':
+        specifier: workspace:*
+        version: link:../core
+      yaml:
+        specifier: ^2.8.2
+        version: 2.8.2
+    devDependencies:
+      '@types/node':
+        specifier: ^22.19.7
+        version: 22.19.7
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.18
+        version: 4.0.18(@opentelemetry/api@1.9.0)(@types/node@22.19.7)(tsx@4.21.0)(yaml@2.8.2)
 
   packages/storage:
     dependencies:

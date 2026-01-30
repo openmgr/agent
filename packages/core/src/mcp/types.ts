@@ -85,15 +85,46 @@ export interface McpServerStatus {
   error?: string;
 }
 
+/**
+ * Factory function type for creating MCP clients.
+ * This allows different implementations to be injected (e.g., stdio for Node.js, different for React Native).
+ */
+export type McpClientFactory = (
+  name: string,
+  config: McpServerConfig
+) => McpClientInterface;
+
+/**
+ * Environment variable resolver function type
+ */
+export type EnvResolver = (varName: string) => string | undefined;
+
+/**
+ * Default environment resolver - returns undefined.
+ * In React Native or browser environments, provide a custom resolver.
+ * For Node.js environments, use the resolver from @openmgr/agent-mcp-stdio.
+ */
+export const defaultEnvResolver: EnvResolver = (_varName: string) => {
+  // Default implementation returns undefined - it's up to the platform-specific
+  // packages to provide actual environment variable resolution
+  return undefined;
+};
+
+/**
+ * Expand environment variables in a record of strings
+ * @param env - Record of environment variables with ${VAR} placeholders
+ * @param resolver - Function to resolve environment variable names to values
+ */
 export function expandEnvVars(
-  env: Record<string, string> | undefined
+  env: Record<string, string> | undefined,
+  resolver: EnvResolver = defaultEnvResolver
 ): Record<string, string> | undefined {
   if (!env) return undefined;
 
   const result: Record<string, string> = {};
   for (const [key, value] of Object.entries(env)) {
     result[key] = value.replace(/\$\{(\w+)\}/g, (_, varName) => {
-      return process.env[varName] ?? "";
+      return resolver(varName) ?? "";
     });
   }
   return result;

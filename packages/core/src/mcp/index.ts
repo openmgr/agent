@@ -1,5 +1,5 @@
 export { McpManager } from "./manager.js";
-export { StdioMcpClient } from "./stdio-client.js";
+export type { McpManagerOptions, McpManagerEvents } from "./manager.js";
 export { SseMcpClient } from "./sse-client.js";
 export {
   registerMcpTools,
@@ -14,7 +14,9 @@ export {
   McpServerConfigSchema,
   McpOAuthConfigSchema,
   expandEnvVars,
+  defaultEnvResolver,
   type McpClientInterface,
+  type McpClientFactory,
   type McpServerConfig,
   type McpStdioConfig,
   type McpSseConfig,
@@ -23,4 +25,8 @@ export {
   type McpResource,
   type McpPrompt,
   type McpServerStatus,
+  type EnvResolver,
 } from "./types.js";
+
+// Note: StdioMcpClient is no longer exported from core.
+// For stdio MCP transport, use @openmgr/agent-mcp-stdio or @openmgr/agent-node.

@@ -28,6 +28,8 @@
   },
   "dependencies": {
     "@openmgr/agent-core": "workspace:*",
+    "@openmgr/agent-config-xdg": "workspace:*",
+    "@openmgr/agent-skills-loader": "workspace:*",
     "@openmgr/agent-providers": "workspace:*",
     "@openmgr/agent-tools": "workspace:*",
     "@openmgr/agent-tools-terminal": "workspace:*",

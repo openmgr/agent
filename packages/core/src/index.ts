@@ -24,7 +24,7 @@ export type {
   CommandDefinition,
   CommandContext,
   CommandResult,
-  SkillSource,
+  PluginSkillSource,
 } from "./plugin.js";
 
 // Registries
@@ -81,32 +81,46 @@ export {
 // Defaults
 export { DEFAULT_SYSTEM_PROMPT, DEFAULT_AGENT_CONFIG } from "./types.js";
 
-// Config
+// Config types (pure - no Node.js dependencies)
+// For Node.js filesystem config, use @openmgr/agent-config-xdg or @openmgr/agent-node
 export {
-  loadConfig,
-  loadGlobalConfig,
-  loadLocalConfig,
-  saveGlobalConfig,
-  saveLocalConfig,
-  setApiKey,
-  setAuthType,
-  getGlobalConfigPath,
-  getLocalConfigPath,
-} from "./config.js";
-export type { ResolvedConfig, Config, AuthType as ConfigAuthType } from "./config.js";
+  type ConfigLoader,
+  type ConfigOverrides,
+  type ResolvedConfig,
+  type ResolvedAuth,
+  type Config,
+  type ProviderAuth,
+  type ApiKeys,
+  type LspServerConfig,
+  LspServerConfigSchema,
+  AuthTypeSchema,
+  ProviderAuthSchema,
+  ApiKeysSchema,
+  CONFIG_DEFAULTS,
+  normalizeProviderAuth,
+  mergeConfigs,
+} from "./config/index.js";
 
 // MCP
 export { McpManager } from "./mcp/manager.js";
-export { StdioMcpClient } from "./mcp/stdio-client.js";
+export type { McpManagerOptions, McpManagerEvents } from "./mcp/manager.js";
 export { SseMcpClient } from "./mcp/sse-client.js";
 export { McpOAuthManager, mcpOAuthManager } from "./mcp/oauth.js";
-export type { OAuthTokens, OAuthTokenStore } from "./mcp/oauth.js";
+export type { OAuthTokens, OAuthTokenStore, OAuthCallbackHandler } from "./mcp/oauth.js";
 export {
   registerMcpTools,
   unregisterMcpTools,
   registerMcpResourcesAndPrompts,
   unregisterMcpResourcesAndPrompts,
 } from "./mcp/adapter.js";
+export {
+  McpServerConfigSchema,
+  McpStdioConfigSchema,
+  McpSseConfigSchema,
+  McpOAuthConfigSchema,
+  expandEnvVars,
+  defaultEnvResolver,
+} from "./mcp/types.js";
 export type {
   McpServerConfig,
   McpStdioConfig,
@@ -115,18 +129,34 @@ export type {
   McpTool,
   McpResource,
   McpPrompt,
+  McpClientInterface,
+  McpClientFactory,
+  McpServerStatus,
+  EnvResolver,
 } from "./mcp/types.js";
 
-// Skills
-export { SkillManager } from "./skills/manager.js";
-export type { SkillManagerOptions } from "./skills/manager.js";
-export { parseSkillMd, loadSkillFromDirectory, isSkillDirectory } from "./skills/loader.js";
+// Note: StdioMcpClient is no longer exported from core.
+// For stdio MCP transport, use @openmgr/agent-mcp-stdio or @openmgr/agent-node.
+
+// Skills types (pure - no Node.js dependencies)
+// For Node.js filesystem skills, use @openmgr/agent-skills-loader or @openmgr/agent-node
 export type {
   SkillMetadata,
   LoadedSkill,
-  SkillSource as SkillSourceType,
+  SkillSource,
+  SkillReference,
+  SkillManagerInterface,
 } from "./skills/types.js";
-export { SkillLoadError, SkillNotFoundError } from "./skills/types.js";
+export {
+  SkillLoadError,
+  SkillNotFoundError,
+  SkillMetadataSchema,
+  SkillNameSchema,
+  SkillDescriptionSchema,
+  SkillCompatibilitySchema,
+  toSkillMetadata,
+  parseAllowedTools,
+} from "./skills/types.js";
 
 // Compaction
 export { CompactionEngine } from "./compaction/engine.js";
@@ -162,3 +192,6 @@ export type {
   PermissionResponse,
   PermissionRequestCallback,
 } from "./permissions.js";
+
+// Cross-platform utilities
+export { generateId, getParentDir } from "./utils/id.js";

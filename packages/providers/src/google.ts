@@ -12,9 +12,9 @@ export class GoogleProvider extends BaseLLMProvider {
   }
 
   private getClient() {
-    const apiKey = this.auth.apiKey ?? process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? process.env.GOOGLE_API_KEY;
+    const apiKey = this.auth.apiKey;
     if (!apiKey) {
-      throw new Error("Google AI API key not configured. Set GOOGLE_GENERATIVE_AI_API_KEY environment variable or pass apiKey option.");
+      throw new Error("Google AI API key not configured. Pass apiKey option when creating the provider.");
     }
     return createGoogleGenerativeAI({ apiKey });
   }

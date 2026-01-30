@@ -14,9 +14,9 @@ export class GroqProvider extends BaseLLMProvider {
   }
 
   private getClient() {
-    const apiKey = this.auth.apiKey ?? process.env.GROQ_API_KEY;
+    const apiKey = this.auth.apiKey;
     if (!apiKey) {
-      throw new Error("Groq API key not configured. Set GROQ_API_KEY environment variable or pass apiKey option.");
+      throw new Error("Groq API key not configured. Pass apiKey option when creating the provider.");
     }
     return createOpenAI({
       apiKey,

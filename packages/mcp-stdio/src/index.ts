@@ -1,7 +1,21 @@
+/**
+ * @openmgr/agent-mcp-stdio
+ *
+ * Stdio MCP (Model Context Protocol) client for OpenMgr Agent.
+ * This package provides the Node.js-specific stdio transport for MCP servers.
+ */
+
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import type { McpClientInterface, McpStdioConfig, McpTool, McpResource, McpPrompt } from "./types.js";
-import { expandEnvVars } from "./types.js";
+import type {
+  McpClientInterface,
+  McpStdioConfig,
+  McpTool,
+  McpResource,
+  McpPrompt,
+  EnvResolver,
+} from "@openmgr/agent-core";
+import { expandEnvVars, defaultEnvResolver } from "@openmgr/agent-core";
 
 export class StdioMcpClient implements McpClientInterface {
   readonly name: string;
@@ -12,10 +26,12 @@ export class StdioMcpClient implements McpClientInterface {
   private tools: McpTool[] = [];
   private resources: McpResource[] = [];
   private prompts: McpPrompt[] = [];
+  private envResolver: EnvResolver;
 
-  constructor(name: string, config: McpStdioConfig) {
+  constructor(name: string, config: McpStdioConfig, envResolver: EnvResolver = defaultEnvResolver) {
     this.name = name;
     this.config = config;
+    this.envResolver = envResolver;
   }
 
   get connected(): boolean {
@@ -25,16 +41,20 @@ export class StdioMcpClient implements McpClientInterface {
   async connect(): Promise<void> {
     if (this._connected) return;
 
-    const baseEnv = process.env as Record<string, string>;
-    const expandedEnv = expandEnvVars(this.config.env);
+    // Build environment from process.env + config.env
     const env: Record<string, string> = {};
 
-    for (const [key, value] of Object.entries(baseEnv)) {
-      if (value !== undefined) {
-        env[key] = value;
+    // Copy current environment (Node.js specific)
+    if (typeof process !== "undefined" && process.env) {
+      for (const [key, value] of Object.entries(process.env)) {
+        if (value !== undefined) {
+          env[key] = value;
+        }
       }
     }
 
+    // Expand and merge config env
+    const expandedEnv = expandEnvVars(this.config.env, this.envResolver);
     if (expandedEnv) {
       Object.assign(env, expandedEnv);
     }
@@ -140,10 +160,7 @@ export class StdioMcpClient implements McpClientInterface {
     return this.tools;
   }
 
-  async callTool(
-    name: string,
-    args: Record<string, unknown>
-  ): Promise<unknown> {
+  async callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
     if (!this.client) {
       throw new Error(`MCP client not connected: ${this.name}`);
     }
@@ -155,9 +172,7 @@ export class StdioMcpClient implements McpClientInterface {
     if (result.isError) {
       const errorContent = content.find((c) => c.type === "text");
       throw new Error(
-        errorContent && "text" in errorContent
-          ? errorContent.text
-          : "Tool call failed"
+        errorContent && "text" in errorContent ? errorContent.text : "Tool call failed"
       );
     }
 
@@ -234,3 +249,6 @@ export class StdioMcpClient implements McpClientInterface {
       .join("\n\n");
   }
 }
+
+// Re-export types for convenience
+export type { McpClientInterface, McpStdioConfig, McpTool, McpResource, McpPrompt, EnvResolver };

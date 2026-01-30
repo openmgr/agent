@@ -1,12 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { SkillManager } from "@openmgr/agent-core";
+import { FilesystemSkillManager } from "@openmgr/agent-skills-loader";
 import { getBundledSkillsDir, getBundledSkillNames } from "@openmgr/agent-skills-bundled";
 
 describe("Skills Integration", () => {
   describe("Bundled skills discovery", () => {
     it("should discover all bundled skills", async () => {
       const bundledSkillsPath = getBundledSkillsDir();
-      const manager = new SkillManager(process.cwd(), {
+      const manager = new FilesystemSkillManager(process.cwd(), {
         additionalBundledPaths: [bundledSkillsPath],
       });
 
@@ -24,7 +24,7 @@ describe("Skills Integration", () => {
 
     it("should load a bundled skill", async () => {
       const bundledSkillsPath = getBundledSkillsDir();
-      const manager = new SkillManager(process.cwd(), {
+      const manager = new FilesystemSkillManager(process.cwd(), {
         additionalBundledPaths: [bundledSkillsPath],
       });
 
@@ -40,7 +40,7 @@ describe("Skills Integration", () => {
 
     it("should generate system prompt section", async () => {
       const bundledSkillsPath = getBundledSkillsDir();
-      const manager = new SkillManager(process.cwd(), {
+      const manager = new FilesystemSkillManager(process.cwd(), {
         additionalBundledPaths: [bundledSkillsPath],
       });
 
@@ -54,7 +54,7 @@ describe("Skills Integration", () => {
     });
 
     it("should throw SkillNotFoundError for missing skill", async () => {
-      const manager = new SkillManager(process.cwd());
+      const manager = new FilesystemSkillManager(process.cwd());
       await manager.discover();
 
       await expect(manager.load("non-existent-skill")).rejects.toThrow("not found");

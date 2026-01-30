@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { defineTool, type SkillManager } from "@openmgr/agent-core";
+import { defineTool, type SkillManagerInterface } from "@openmgr/agent-core";
 
 /**
  * Skill tool - loads detailed instructions for a specific skill
@@ -14,7 +14,7 @@ export const skillTool = defineTool({
     name: z.string().describe("The skill identifier from available_skills"),
   }),
   async execute(params, ctx) {
-    const skillManager = ctx.getSkillManager?.() as SkillManager | undefined;
+    const skillManager = ctx.getSkillManager?.() as SkillManagerInterface | undefined;
     
     if (!skillManager) {
       return {
@@ -29,7 +29,7 @@ export const skillTool = defineTool({
           output: `Error: Skill "${params.name}" not found. No skills are currently available.`,
         };
       }
-      const skillNames = available.map((s) => s.name).join(", ");
+      const skillNames = available.map((s: { name: string }) => s.name).join(", ");
       return {
         output: `Error: Skill "${params.name}" not found. Available skills: ${skillNames}`,
       };

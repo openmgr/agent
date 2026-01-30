@@ -1,6 +1,6 @@
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import type { AgentPlugin, SkillSource } from "@openmgr/agent-core";
+import type { AgentPlugin, PluginSkillSource } from "@openmgr/agent-core";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -85,9 +85,9 @@ export function getBundledSkillsDir(): string {
 }
 
 /**
- * Convert bundled skills to SkillSource format for plugin registration.
+ * Convert bundled skills to PluginSkillSource format for plugin registration.
  */
-function toSkillSources(): SkillSource[] {
+function toPluginSkillSources(): PluginSkillSource[] {
   return bundledSkills.map(skill => ({
     name: skill.name,
     description: skill.description,
@@ -111,6 +111,6 @@ export function skillsBundledPlugin(): AgentPlugin {
   return {
     name: "skills-bundled",
     version: "0.1.0",
-    skills: toSkillSources(),
+    skills: toPluginSkillSources(),
   };
 }

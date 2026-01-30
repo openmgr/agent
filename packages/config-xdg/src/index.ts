@@ -1,38 +1,36 @@
+/**
+ * @openmgr/agent-config-xdg
+ * 
+ * XDG-compliant file-based configuration for OpenMgr Agent.
+ * Stores configuration in ~/.config/openmgr/ following the XDG Base Directory Specification.
+ */
+
 import { readFile, writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
 import { resolve, join, dirname } from "path";
 import { homedir } from "os";
 import { z } from "zod";
-import { McpServerConfigSchema, type McpServerConfig } from "./mcp/types.js";
+import {
+  type Config,
+  type ConfigLoader,
+  type ConfigOverrides,
+  type ResolvedConfig,
+  type ResolvedAuth,
+  type ProviderAuth,
+  normalizeProviderAuth,
+  mergeConfigs,
+  ApiKeysSchema,
+  LspServerConfigSchema,
+} from "@openmgr/agent-core";
+import { McpServerConfigSchema } from "@openmgr/agent-core";
 
-// LSP server configuration schema (for compatibility)
-const LspServerConfigSchema = z.object({
-  disabled: z.boolean().optional(),
-  command: z.string().optional(),
-  args: z.array(z.string()).optional(),
-  env: z.record(z.string()).optional(),
-  rootPatterns: z.array(z.string()).optional(),
-});
-
-export type LspServerConfig = z.infer<typeof LspServerConfigSchema>;
-
+// XDG paths
 const CONFIG_DIR = join(homedir(), ".config", "openmgr");
 const GLOBAL_CONFIG_PATH = join(CONFIG_DIR, "agent.json");
 const LOCAL_CONFIG_FILENAME = ".openmgr.json";
 
-const AuthTypeSchema = z.enum(["oauth", "api-key"]);
-
-const ProviderAuthSchema = z.object({
-  type: AuthTypeSchema,
-  apiKey: z.string().optional(),
-});
-
-const ApiKeysSchema = z.object({
-  anthropic: z.union([z.string(), ProviderAuthSchema]).optional(),
-  openai: z.union([z.string(), ProviderAuthSchema]).optional(),
-});
-
-export const ConfigSchema = z.object({
+// Config schema for validation
+const ConfigSchema = z.object({
   provider: z.string().optional(),
   model: z.string().optional(),
   apiKeys: ApiKeysSchema.optional(),
@@ -44,33 +42,9 @@ export const ConfigSchema = z.object({
   temperature: z.number().min(0).max(2).optional(),
 });
 
-export type AuthType = z.infer<typeof AuthTypeSchema>;
-export type ProviderAuth = z.infer<typeof ProviderAuthSchema>;
-export type ApiKeys = z.infer<typeof ApiKeysSchema>;
-export type Config = z.infer<typeof ConfigSchema>;
-
-export interface ResolvedAuth {
-  type: AuthType;
-  apiKey?: string;
-}
-
-export interface ResolvedConfig {
-  provider: string;
-  model: string;
-  auth: ResolvedAuth;
-  systemPrompt?: string;
-  tools?: string[];
-  mcp?: Record<string, McpServerConfig>;
-  lsp?: Record<string, LspServerConfig>;
-  maxTokens?: number;
-  temperature?: number;
-}
-
-const DEFAULTS = {
-  provider: "anthropic",
-  model: "claude-sonnet-4-20250514",
-};
-
+/**
+ * Load and parse a JSON config file
+ */
 async function loadJsonFile(path: string): Promise<Config | null> {
   try {
     if (!existsSync(path)) return null;
@@ -82,11 +56,17 @@ async function loadJsonFile(path: string): Promise<Config | null> {
   }
 }
 
+/**
+ * Save config to a JSON file
+ */
 async function saveJsonFile(path: string, config: Config): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, JSON.stringify(config, null, 2), "utf-8");
 }
 
+/**
+ * Find local config file by walking up directory tree
+ */
 function findLocalConfigPath(startDir: string): string | null {
   let dir = resolve(startDir);
   const root = resolve("/");
@@ -102,28 +82,31 @@ function findLocalConfigPath(startDir: string): string | null {
   return null;
 }
 
-export async function loadGlobalConfig(): Promise<Config | null> {
-  return loadJsonFile(GLOBAL_CONFIG_PATH);
-}
-
-export async function loadLocalConfig(
-  workingDirectory: string
-): Promise<Config | null> {
-  const configPath = findLocalConfigPath(workingDirectory);
-  if (!configPath) return null;
-  return loadJsonFile(configPath);
-}
-
-function normalizeProviderAuth(
-  value: string | ProviderAuth | undefined
-): ProviderAuth | undefined {
-  if (!value) return undefined;
-  if (typeof value === "string") {
-    return { type: "api-key", apiKey: value };
+/**
+ * Get API key from environment variable
+ */
+function getEnvApiKey(provider: string): string | undefined {
+  switch (provider) {
+    case "openai":
+      return process.env.OPENAI_API_KEY;
+    case "anthropic":
+      return process.env.ANTHROPIC_API_KEY;
+    case "google":
+      return process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    case "openrouter":
+      return process.env.OPENROUTER_API_KEY;
+    case "groq":
+      return process.env.GROQ_API_KEY;
+    case "xai":
+      return process.env.XAI_API_KEY;
+    default:
+      return undefined;
   }
-  return value;
 }
 
+/**
+ * Resolve authentication from configs and environment
+ */
 function resolveAuth(
   provider: string,
   globalConfig: Config,
@@ -155,80 +138,51 @@ function resolveAuth(
   return { type: "oauth" };
 }
 
-function getEnvApiKey(provider: string): string | undefined {
-  switch (provider) {
-    case "openai":
-      return process.env.OPENAI_API_KEY;
-    case "anthropic":
-      return process.env.ANTHROPIC_API_KEY;
-    case "google":
-      return process.env.GOOGLE_API_KEY;
-    case "openrouter":
-      return process.env.OPENROUTER_API_KEY;
-    case "groq":
-      return process.env.GROQ_API_KEY;
-    case "xai":
-      return process.env.XAI_API_KEY;
-    default:
-      return undefined;
-  }
+/**
+ * Load global configuration from ~/.config/openmgr/agent.json
+ */
+export async function loadGlobalConfig(): Promise<Config | null> {
+  return loadJsonFile(GLOBAL_CONFIG_PATH);
 }
 
+/**
+ * Load local configuration by searching up from working directory
+ */
+export async function loadLocalConfig(workingDirectory: string): Promise<Config | null> {
+  const configPath = findLocalConfigPath(workingDirectory);
+  if (!configPath) return null;
+  return loadJsonFile(configPath);
+}
+
+/**
+ * Load and resolve full configuration
+ */
 export async function loadConfig(
   workingDirectory: string = process.cwd(),
-  overrides: { provider?: string; model?: string; apiKey?: string; systemPrompt?: string; tools?: string[]; maxTokens?: number; temperature?: number } = {}
+  overrides: ConfigOverrides = {}
 ): Promise<ResolvedConfig> {
   const globalConfig = (await loadGlobalConfig()) ?? {};
   const localConfig = (await loadLocalConfig(workingDirectory)) ?? {};
 
-  const provider =
-    overrides.provider ??
-    localConfig.provider ??
-    globalConfig.provider ??
-    DEFAULTS.provider;
-
-  const model =
-    overrides.model ??
-    localConfig.model ??
-    globalConfig.model ??
-    DEFAULTS.model;
-
-  const auth = resolveAuth(provider, globalConfig, localConfig, overrides.apiKey);
-
-  const systemPrompt =
-    overrides.systemPrompt ?? localConfig.systemPrompt ?? globalConfig.systemPrompt;
-
-  const tools = overrides.tools ?? localConfig.tools ?? globalConfig.tools;
-
-  const mcp = {
-    ...globalConfig.mcp,
-    ...localConfig.mcp,
-  };
-
-  const lsp = {
-    ...globalConfig.lsp,
-    ...localConfig.lsp,
-  };
-
-  const maxTokens =
-    overrides.maxTokens ?? localConfig.maxTokens ?? globalConfig.maxTokens;
-
-  const temperature =
-    overrides.temperature ?? localConfig.temperature ?? globalConfig.temperature;
+  const merged = mergeConfigs(globalConfig, localConfig, overrides);
+  const auth = resolveAuth(merged.provider, globalConfig, localConfig, merged.apiKey);
 
   return {
-    provider,
-    model,
+    provider: merged.provider,
+    model: merged.model,
     auth,
-    systemPrompt,
-    tools,
-    mcp: Object.keys(mcp).length > 0 ? mcp : undefined,
-    lsp: Object.keys(lsp).length > 0 ? lsp : undefined,
-    maxTokens,
-    temperature,
+    systemPrompt: merged.systemPrompt,
+    tools: merged.tools,
+    mcp: merged.mcp,
+    lsp: merged.lsp,
+    maxTokens: merged.maxTokens,
+    temperature: merged.temperature,
   };
 }
 
+/**
+ * Save global configuration (merges with existing)
+ */
 export async function saveGlobalConfig(config: Partial<Config>): Promise<void> {
   const existing = (await loadGlobalConfig()) ?? {};
   const merged: Config = {
@@ -241,6 +195,9 @@ export async function saveGlobalConfig(config: Partial<Config>): Promise<void> {
   await saveJsonFile(GLOBAL_CONFIG_PATH, merged);
 }
 
+/**
+ * Save local configuration (merges with existing)
+ */
 export async function saveLocalConfig(
   workingDirectory: string,
   config: Partial<Config>
@@ -257,6 +214,9 @@ export async function saveLocalConfig(
   await saveJsonFile(configPath, merged);
 }
 
+/**
+ * Set API key for a provider
+ */
 export async function setApiKey(
   provider: "anthropic" | "openai",
   apiKey: string,
@@ -274,9 +234,12 @@ export async function setApiKey(
   }
 }
 
+/**
+ * Set auth type for a provider
+ */
 export async function setAuthType(
   provider: "anthropic" | "openai",
-  type: AuthType,
+  type: "oauth" | "api-key",
   scope: "global" | "local" = "global",
   workingDirectory?: string
 ): Promise<void> {
@@ -291,10 +254,29 @@ export async function setAuthType(
   }
 }
 
+/**
+ * Get the global config file path
+ */
 export function getGlobalConfigPath(): string {
   return GLOBAL_CONFIG_PATH;
 }
 
+/**
+ * Get the local config file path for a directory
+ */
 export function getLocalConfigPath(workingDirectory: string): string {
   return join(workingDirectory, LOCAL_CONFIG_FILENAME);
 }
+
+/**
+ * XDG config loader implementation
+ */
+export const xdgConfigLoader: ConfigLoader = {
+  loadConfig,
+  loadGlobalConfig,
+  loadLocalConfig,
+  saveGlobalConfig,
+  saveLocalConfig,
+};
+
+export default xdgConfigLoader;

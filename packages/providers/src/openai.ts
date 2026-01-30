@@ -12,9 +12,9 @@ export class OpenAIProvider extends BaseLLMProvider {
   }
 
   private getClient() {
-    const apiKey = this.auth.apiKey ?? process.env.OPENAI_API_KEY;
+    const apiKey = this.auth.apiKey;
     if (!apiKey) {
-      throw new Error("OpenAI API key not configured. Set OPENAI_API_KEY environment variable or pass apiKey option.");
+      throw new Error("OpenAI API key not configured. Pass apiKey option when creating the provider.");
     }
     return createOpenAI({ apiKey });
   }

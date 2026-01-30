@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import chalk from "chalk";
-import { McpManager, loadConfig } from "@openmgr/agent-core";
+import { McpManager, type McpServerConfig } from "@openmgr/agent-core";
+import { loadConfig } from "@openmgr/agent-config-xdg";
 
 export function registerMcpCommands(program: Command): void {
   const mcpCmd = program
@@ -25,18 +26,19 @@ export function registerMcpCommands(program: Command): void {
       }
 
       if (options.json) {
-        console.log(JSON.stringify({ servers: Object.entries(config.mcp).map(([name, cfg]) => ({ name, ...cfg })) }, null, 2));
+        console.log(JSON.stringify({ servers: Object.entries(config.mcp).map(([name, cfg]) => ({ name, ...(cfg as McpServerConfig) })) }, null, 2));
         return;
       }
 
       console.log(chalk.cyan(`Configured MCP servers:\n`));
-      for (const [name, serverConfig] of Object.entries(config.mcp)) {
+      for (const [name, serverConfigRaw] of Object.entries(config.mcp)) {
+        const serverConfig = serverConfigRaw as McpServerConfig;
         const transport = serverConfig.transport ?? "stdio";
         console.log(`  ${chalk.white(name)}`);
         console.log(`    Transport: ${chalk.gray(transport)}`);
         if (transport === "stdio" && "command" in serverConfig) {
           console.log(`    Command:   ${chalk.gray(serverConfig.command)}`);
-          if (serverConfig.args?.length) {
+          if ("args" in serverConfig && serverConfig.args?.length) {
             console.log(`    Args:      ${chalk.gray(serverConfig.args.join(" "))}`);
           }
         } else if (transport === "sse" && "url" in serverConfig) {
@@ -67,10 +69,10 @@ export function registerMcpCommands(program: Command): void {
 
       console.log(chalk.cyan("Connecting to MCP servers...\n"));
 
-      for (const [name, serverConfig] of Object.entries(config.mcp)) {
+      for (const [name, serverConfigRaw] of Object.entries(config.mcp)) {
         try {
           process.stdout.write(`  ${name}: `);
-          await manager.addServer(name, serverConfig);
+          await manager.addServer(name, serverConfigRaw as McpServerConfig);
           console.log(chalk.green("connected"));
         } catch (err) {
           console.log(chalk.red(`failed - ${(err as Error).message}`));

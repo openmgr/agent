@@ -69,13 +69,12 @@ export {
   DEFAULT_SYSTEM_PROMPT,
   DEFAULT_AGENT_CONFIG,
 
-  // Config
-  loadConfig,
+  // Config types
   type ResolvedConfig,
+  type ConfigLoader,
 
   // MCP
   McpManager,
-  StdioMcpClient,
   SseMcpClient,
   McpOAuthManager,
   mcpOAuthManager,
@@ -90,14 +89,13 @@ export {
   type McpTool,
   type McpResource,
   type McpPrompt,
+  type McpClientFactory,
+  type OAuthCallbackHandler,
 
-  // Skills
-  SkillManager,
-  parseSkillMd,
-  loadSkillFromDirectory,
-  isSkillDirectory,
+  // Skills types
   type SkillMetadata,
   type LoadedSkill,
+  type SkillManagerInterface,
   SkillLoadError,
   SkillNotFoundError,
 

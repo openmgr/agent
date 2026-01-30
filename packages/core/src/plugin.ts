@@ -56,10 +56,10 @@ export interface CommandDefinition {
 }
 
 // ============================================================================
-// Skill Source (for bundled skills)
+// Plugin Skill Source (for bundled skills from plugins)
 // ============================================================================
 
-export interface SkillSource {
+export interface PluginSkillSource {
   name: string;
   description: string;
   path: string;
@@ -83,7 +83,7 @@ export interface AgentPlugin {
   /** Slash commands to register */
   commands?: CommandDefinition[];
   /** Skill sources to register */
-  skills?: SkillSource[];
+  skills?: PluginSkillSource[];
   
   // Lifecycle hooks
   /** Called when the plugin is registered with an agent */

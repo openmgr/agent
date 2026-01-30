@@ -1,12 +1,11 @@
 import { EventEmitter } from "eventemitter3";
-import { randomUUID } from "crypto";
-import { dirname } from "path";
+import { generateId, getParentDir } from "./utils/id.js";
 import { toolRegistry } from "./registry/tools.js";
 import { providerRegistry } from "./registry/providers.js";
 import { commandRegistry } from "./registry/commands.js";
 import { registerBuiltinCommands } from "./commands/builtin.js";
-import { loadConfig, type ResolvedConfig } from "./config.js";
 import { McpManager } from "./mcp/manager.js";
+import type { McpClientFactory } from "./mcp/types.js";
 import {
   registerMcpTools,
   unregisterMcpTools,
@@ -16,7 +15,8 @@ import {
 import { CompactionEngine } from "./compaction/engine.js";
 import type { CompactionConfig, CompactionResult } from "./compaction/types.js";
 import { DEFAULT_COMPACTION_CONFIG } from "./compaction/types.js";
-import { SkillManager } from "./skills/index.js";
+import type { SkillManagerInterface } from "./skills/types.js";
+import type { ConfigLoader, ResolvedConfig } from "./config/types.js";
 import type {
   AgentConfig,
   AgentEvent,
@@ -47,8 +47,33 @@ export interface AgentOptions {
   systemPrompt?: string;
   workingDirectory?: string;
   tools?: string[];
+  /**
+   * Skip automatic config loading. If true, only use provided options.
+   */
   skipConfigLoad?: boolean;
+  /**
+   * Custom config loader implementation.
+   * If not provided and skipConfigLoad is false, config loading is skipped.
+   * Use @openmgr/agent-node which provides filesystem-based config loading.
+   */
+  configLoader?: ConfigLoader;
+  /**
+   * Pre-resolved configuration. If provided, configLoader is not used.
+   */
+  resolvedConfig?: ResolvedConfig;
+  /**
+   * Skill manager implementation.
+   * If not provided, skills are disabled.
+   * Use @openmgr/agent-node which provides filesystem-based skill loading.
+   */
+  skillManager?: SkillManagerInterface;
   mcp?: Record<string, McpServerConfig>;
+  /**
+   * Factory function for creating MCP clients.
+   * Required for stdio transport. If not provided, only SSE transport is supported.
+   * Use @openmgr/agent-node which provides a factory that includes stdio support.
+   */
+  mcpClientFactory?: McpClientFactory;
   compaction?: Partial<CompactionConfig>;
   permissions?: ToolPermissionConfig;
   maxTokens?: number;
@@ -71,9 +96,10 @@ export class Agent extends EventEmitter<{
   private messages: Message[] = [];
   private abortController: AbortController | null = null;
   private mcpManager: McpManager | null = null;
+  private mcpClientFactory?: McpClientFactory;
   private compactionEngine: CompactionEngine | null = null;
   private compactionConfig: CompactionConfig;
-  private skillManager: SkillManager | null = null;
+  private skillManager: SkillManagerInterface | null = null;
   private todos: TodoItem[] = [];
   private phases: PhaseItem[] = [];
   private sessionContext: AgentSessionContext | null = null;
@@ -88,13 +114,17 @@ export class Agent extends EventEmitter<{
   constructor(
     config: AgentConfig, 
     compactionConfig?: Partial<CompactionConfig>,
-    permissionConfig?: ToolPermissionConfig
+    permissionConfig?: ToolPermissionConfig,
+    mcpClientFactory?: McpClientFactory,
+    skillManager?: SkillManagerInterface
   ) {
     super();
     this.config = {
       ...config,
       systemPrompt: config.systemPrompt ?? DEFAULT_SYSTEM_PROMPT,
     };
+    this.mcpClientFactory = mcpClientFactory;
+    this.skillManager = skillManager ?? null;
 
     // Try to create provider from registry
     if (providerRegistry.has(config.provider)) {
@@ -158,11 +188,11 @@ export class Agent extends EventEmitter<{
     }
 
     // Register skills - add the skill paths to the skill manager
-    if (plugin.skills && this.skillManager) {
+    if (plugin.skills && this.skillManager && this.skillManager.addBundledPath) {
       for (const skill of plugin.skills) {
         // Get the parent directory of the skill file (e.g., /path/to/skills/code-review from /path/to/skills/code-review/SKILL.md)
-        const skillDir = dirname(skill.path);
-        const skillsBaseDir = dirname(skillDir);
+        const skillDir = getParentDir(skill.path);
+        const skillsBaseDir = getParentDir(skillDir);
         this.skillManager.addBundledPath(skillsBaseDir);
       }
       // Re-discover skills to pick up the new paths
@@ -251,7 +281,9 @@ export class Agent extends EventEmitter<{
       await this.shutdownMcp();
     }
 
-    this.mcpManager = new McpManager();
+    this.mcpManager = new McpManager({
+      clientFactory: this.mcpClientFactory,
+    });
 
     this.mcpManager.on("server.connected", (serverName, toolCount) => {
       this.emit("event", {
@@ -291,12 +323,29 @@ export class Agent extends EventEmitter<{
   // Skills Integration
   // ============================================================================
 
+  /**
+   * Set the skill manager for this agent.
+   * Call this before prompting to enable skill discovery.
+   */
+  setSkillManager(manager: SkillManagerInterface): void {
+    this.skillManager = manager;
+  }
+
+  /**
+   * Initialize skills if a skill manager is configured.
+   * Discovers skills and updates the system prompt.
+   */
   async initSkills(): Promise<void> {
-    this.skillManager = new SkillManager(this.config.workingDirectory!);
+    if (!this.skillManager) {
+      // No skill manager configured - skills are disabled
+      return;
+    }
+
     await this.skillManager.discover();
 
     // Log any override warnings
-    for (const warning of this.skillManager.getOverrideWarnings()) {
+    const warnings = this.skillManager.getOverrideWarnings?.() ?? [];
+    for (const warning of warnings) {
       console.warn(`Warning: ${warning}`);
     }
 
@@ -308,7 +357,7 @@ export class Agent extends EventEmitter<{
     }
   }
 
-  getSkillManager(): SkillManager | null {
+  getSkillManager(): SkillManagerInterface | null {
     return this.skillManager;
   }
 
@@ -415,62 +464,64 @@ export class Agent extends EventEmitter<{
   // ============================================================================
 
   static async create(options: AgentOptions = {}): Promise<Agent> {
-    const workingDirectory = options.workingDirectory ?? process.cwd();
+    // Default working directory - uses process.cwd() in Node.js environments
+    // For React Native or other environments, workingDirectory should be explicitly provided
+    const workingDirectory = options.workingDirectory ?? 
+      (typeof process !== "undefined" && process.cwd ? process.cwd() : ".");
 
-    if (options.skipConfigLoad) {
-      const auth: AuthConfig = options.apiKey
-        ? { type: "api-key", apiKey: options.apiKey }
-        : { type: "oauth" };
+    let config: ResolvedConfig | undefined;
 
-      const agent = new Agent(
-        {
-          provider: options.provider ?? "anthropic",
-          model: options.model ?? "claude-sonnet-4-20250514",
-          auth,
-          systemPrompt: options.systemPrompt,
-          tools: options.tools,
-          workingDirectory,
-          maxTokens: options.maxTokens,
-          temperature: options.temperature,
-        },
-        options.compaction,
-        options.permissions
-      );
-      return agent;
+    // Determine configuration source
+    if (options.resolvedConfig) {
+      // Use pre-resolved config
+      config = options.resolvedConfig;
+    } else if (!options.skipConfigLoad && options.configLoader) {
+      // Use provided config loader
+      config = await options.configLoader.loadConfig(workingDirectory, {
+        provider: options.provider,
+        model: options.model,
+        apiKey: options.apiKey,
+        systemPrompt: options.systemPrompt,
+        tools: options.tools,
+        maxTokens: options.maxTokens,
+        temperature: options.temperature,
+      });
     }
 
-    const config = await loadConfig(workingDirectory, {
-      provider: options.provider,
-      model: options.model,
-      apiKey: options.apiKey,
-      systemPrompt: options.systemPrompt,
-      tools: options.tools,
-      maxTokens: options.maxTokens,
-      temperature: options.temperature,
-    });
+    // Build auth config
+    const auth: AuthConfig = config?.auth ?? (
+      options.apiKey
+        ? { type: "api-key", apiKey: options.apiKey }
+        : { type: "oauth" }
+    );
 
     const agent = new Agent(
       {
-        provider: config.provider,
-        model: config.model,
-        auth: config.auth,
-        systemPrompt: config.systemPrompt,
-        tools: config.tools,
+        provider: config?.provider ?? options.provider ?? "anthropic",
+        model: config?.model ?? options.model ?? "claude-sonnet-4-20250514",
+        auth,
+        systemPrompt: config?.systemPrompt ?? options.systemPrompt,
+        tools: config?.tools ?? options.tools,
         workingDirectory,
-        maxTokens: config.maxTokens,
-        temperature: config.temperature,
+        maxTokens: config?.maxTokens ?? options.maxTokens,
+        temperature: config?.temperature ?? options.temperature,
       },
       options.compaction,
-      options.permissions
+      options.permissions,
+      options.mcpClientFactory,
+      options.skillManager
     );
 
-    const mcpConfig = options.mcp ?? config.mcp;
+    // Initialize MCP if configured
+    const mcpConfig = options.mcp ?? config?.mcp;
     if (mcpConfig && Object.keys(mcpConfig).length > 0) {
       await agent.initMcp(mcpConfig);
     }
 
-    // Initialize skills system
-    await agent.initSkills();
+    // Initialize skills if a skill manager was provided
+    if (options.skillManager) {
+      await agent.initSkills();
+    }
 
     return agent;
   }
@@ -498,7 +549,7 @@ export class Agent extends EventEmitter<{
         if (!commandResult.shouldContinue) {
           // Return command output as a message
           return {
-            id: randomUUID(),
+            id: generateId(),
             role: "assistant",
             content: commandResult.output,
             createdAt: Date.now(),
@@ -517,7 +568,7 @@ export class Agent extends EventEmitter<{
     }
 
     const userMsg: Message = {
-      id: randomUUID(),
+      id: generateId(),
       role: "user",
       content: userMessage,
       createdAt: Date.now(),
@@ -621,7 +672,7 @@ export class Agent extends EventEmitter<{
       );
 
       const toolResultMessage: Message = {
-        id: randomUUID(),
+        id: generateId(),
         role: "user",
         content: "",
         toolResults,
@@ -638,7 +689,7 @@ export class Agent extends EventEmitter<{
       throw new Error("No provider configured");
     }
 
-    const messageId = randomUUID();
+    const messageId = generateId();
 
     this.emit("event", { type: "message.start", messageId });
 

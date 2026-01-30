@@ -2,14 +2,13 @@ import { EventEmitter } from "eventemitter3";
 import type {
   McpClientInterface,
   McpServerConfig,
-  McpStdioConfig,
   McpSseConfig,
   McpTool,
   McpResource,
   McpPrompt,
   McpServerStatus,
+  McpClientFactory,
 } from "./types.js";
-import { StdioMcpClient } from "./stdio-client.js";
 import { SseMcpClient } from "./sse-client.js";
 
 export interface McpManagerEvents {
@@ -18,11 +17,26 @@ export interface McpManagerEvents {
   "server.error": (serverName: string, error: Error) => void;
 }
 
+export interface McpManagerOptions {
+  /**
+   * Optional client factory for creating MCP clients.
+   * If provided, this will be used to create clients for all transports.
+   * If not provided, only SSE transport is supported (stdio requires the factory).
+   */
+  clientFactory?: McpClientFactory;
+}
+
 export class McpManager extends EventEmitter<McpManagerEvents> {
   private clients: Map<string, McpClientInterface> = new Map();
   private tools: Map<string, McpTool> = new Map();
   private resources: Map<string, McpResource> = new Map();
   private prompts: Map<string, McpPrompt> = new Map();
+  private clientFactory?: McpClientFactory;
+
+  constructor(options: McpManagerOptions = {}) {
+    super();
+    this.clientFactory = options.clientFactory;
+  }
 
   async loadFromConfig(
     mcpConfig: Record<string, McpServerConfig>
@@ -45,10 +59,18 @@ export class McpManager extends EventEmitter<McpManagerEvents> {
 
     let client: McpClientInterface;
 
-    if (config.transport === "sse") {
+    // If a client factory is provided, use it for all transports
+    if (this.clientFactory) {
+      client = this.clientFactory(name, config);
+    } else if (config.transport === "sse") {
+      // Built-in SSE support (works in all environments)
       client = new SseMcpClient(name, config as McpSseConfig);
     } else {
-      client = new StdioMcpClient(name, config as McpStdioConfig);
+      // Stdio transport requires a client factory (Node.js-specific)
+      throw new Error(
+        `Stdio MCP transport requires a client factory. ` +
+        `Use McpManager with a clientFactory option, or use @openmgr/agent-node which provides one.`
+      );
     }
 
     try {

@@ -1,9 +1,4 @@
-import { randomBytes, createHash } from "crypto";
-import { createServer } from "http";
 import type { McpOAuthConfig } from "./types.js";
-
-const CALLBACK_PORT = 19283;
-const CALLBACK_PATH = "/callback";
 
 export interface OAuthTokens {
   accessToken: string;
@@ -25,6 +20,33 @@ export interface OAuthTokenStore {
 }
 
 /**
+ * Interface for handling the OAuth callback.
+ * Implementations can use different approaches:
+ * - Node.js: Local HTTP server
+ * - React Native: Deep linking
+ * - Browser: Redirect or popup
+ */
+export interface OAuthCallbackHandler {
+  /**
+   * Start listening for the OAuth callback
+   * @param state Expected state parameter for CSRF protection
+   * @param timeout Timeout in milliseconds
+   * @returns The authorization code
+   */
+  waitForCallback(state: string, timeout: number): Promise<string>;
+  
+  /**
+   * Get the redirect URI for the OAuth flow
+   */
+  getRedirectUri(): string;
+  
+  /**
+   * Clean up any resources (e.g., close server)
+   */
+  cleanup?(): void;
+}
+
+/**
  * In-memory token store (tokens are lost on restart)
  */
 class InMemoryTokenStore implements OAuthTokenStore {
@@ -43,31 +65,81 @@ class InMemoryTokenStore implements OAuthTokenStore {
   }
 }
 
-function base64UrlEncode(buffer: Buffer): string {
-  return buffer
-    .toString("base64")
+/**
+ * Convert a Uint8Array to base64url encoding
+ */
+function uint8ArrayToBase64Url(bytes: Uint8Array): string {
+  // Convert to regular base64
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]!);
+  }
+  const base64 = btoa(binary);
+  
+  // Convert to base64url
+  return base64
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=/g, "");
 }
 
+/**
+ * Generate random bytes using Web Crypto API
+ */
+function getRandomBytes(length: number): Uint8Array {
+  const bytes = new Uint8Array(length);
+  
+  if (typeof globalThis !== "undefined" && globalThis.crypto?.getRandomValues) {
+    globalThis.crypto.getRandomValues(bytes);
+  } else {
+    // Fallback for environments without Web Crypto (should be rare)
+    for (let i = 0; i < length; i++) {
+      bytes[i] = Math.floor(Math.random() * 256);
+    }
+  }
+  
+  return bytes;
+}
+
+/**
+ * Generate a code verifier for PKCE
+ */
 function generateCodeVerifier(): string {
-  return base64UrlEncode(randomBytes(32));
+  return uint8ArrayToBase64Url(getRandomBytes(32));
 }
 
-function generateCodeChallenge(verifier: string): string {
-  return base64UrlEncode(createHash("sha256").update(verifier).digest());
+/**
+ * Generate a code challenge for PKCE using SHA-256
+ */
+async function generateCodeChallenge(verifier: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(verifier);
+  
+  if (typeof globalThis !== "undefined" && globalThis.crypto?.subtle) {
+    const hash = await globalThis.crypto.subtle.digest("SHA-256", data);
+    return uint8ArrayToBase64Url(new Uint8Array(hash));
+  }
+  
+  // Fallback: return verifier as plain (less secure, but works)
+  // This should only happen in very old environments
+  console.warn("Web Crypto API not available, using plain code challenge (less secure)");
+  return verifier;
 }
 
+/**
+ * Generate a random state string for CSRF protection
+ */
 function generateState(): string {
-  return base64UrlEncode(randomBytes(16));
+  return uint8ArrayToBase64Url(getRandomBytes(16));
 }
 
 export class McpOAuthManager {
   private tokenStore: OAuthTokenStore;
+  private callbackHandler?: OAuthCallbackHandler;
 
-  constructor(tokenStore?: OAuthTokenStore) {
+  constructor(tokenStore?: OAuthTokenStore, callbackHandler?: OAuthCallbackHandler) {
     this.tokenStore = tokenStore ?? new InMemoryTokenStore();
+    this.callbackHandler = callbackHandler;
   }
 
   /**
@@ -75,6 +147,13 @@ export class McpOAuthManager {
    */
   setTokenStore(store: OAuthTokenStore): void {
     this.tokenStore = store;
+  }
+
+  /**
+   * Set a custom callback handler (e.g., local HTTP server, deep linking)
+   */
+  setCallbackHandler(handler: OAuthCallbackHandler): void {
+    this.callbackHandler = handler;
   }
 
   async getStoredTokens(serverName: string): Promise<OAuthTokens | null> {
@@ -159,19 +238,37 @@ export class McpOAuthManager {
     return this.refreshTokens(serverName, oauthConfig);
   }
 
+  /**
+   * Initiate the OAuth authorization code flow with PKCE.
+   * 
+   * @param serverName Name of the MCP server
+   * @param oauthConfig OAuth configuration
+   * @param openBrowser Function to open the authorization URL in a browser
+   * @returns The obtained OAuth tokens
+   * @throws Error if no callback handler is configured
+   */
   async initiateOAuthFlow(
     serverName: string,
     oauthConfig: McpOAuthConfig,
     openBrowser: (url: string) => Promise<void>
   ): Promise<OAuthTokens> {
+    if (!this.callbackHandler) {
+      throw new Error(
+        "OAuth callback handler not configured. " +
+        "In Node.js, use @openmgr/agent-node which provides a local HTTP server handler. " +
+        "In React Native, configure a deep linking handler."
+      );
+    }
+
     const codeVerifier = generateCodeVerifier();
-    const codeChallenge = generateCodeChallenge(codeVerifier);
+    const codeChallenge = await generateCodeChallenge(codeVerifier);
     const state = generateState();
+    const redirectUri = this.callbackHandler.getRedirectUri();
 
     const authParams = new URLSearchParams({
       response_type: "code",
       client_id: oauthConfig.clientId,
-      redirect_uri: `http://localhost:${CALLBACK_PORT}${CALLBACK_PATH}`,
+      redirect_uri: redirectUri,
       state,
       code_challenge: codeChallenge,
       code_challenge_method: "S256",
@@ -183,77 +280,23 @@ export class McpOAuthManager {
 
     const authUrl = `${oauthConfig.authorizationUrl}?${authParams.toString()}`;
 
-    const code = await new Promise<string>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        server.close();
-        reject(new Error("OAuth flow timed out"));
-      }, 120000);
+    // Start listening for callback before opening browser
+    const codePromise = this.callbackHandler.waitForCallback(state, 120000);
+    
+    // Open browser
+    await openBrowser(authUrl);
+    
+    // Wait for the callback
+    const code = await codePromise;
 
-      const server = createServer((req, res) => {
-        const url = new URL(req.url!, `http://localhost:${CALLBACK_PORT}`);
+    // Clean up callback handler
+    this.callbackHandler.cleanup?.();
 
-        if (url.pathname !== CALLBACK_PATH) {
-          res.writeHead(404);
-          res.end("Not found");
-          return;
-        }
-
-        const receivedState = url.searchParams.get("state");
-        const receivedCode = url.searchParams.get("code");
-        const error = url.searchParams.get("error");
-
-        if (error) {
-          res.writeHead(400);
-          res.end(`OAuth error: ${error}`);
-          clearTimeout(timeout);
-          server.close();
-          reject(new Error(`OAuth error: ${error}`));
-          return;
-        }
-
-        if (receivedState !== state) {
-          res.writeHead(400);
-          res.end("Invalid state parameter");
-          clearTimeout(timeout);
-          server.close();
-          reject(new Error("Invalid state parameter"));
-          return;
-        }
-
-        if (!receivedCode) {
-          res.writeHead(400);
-          res.end("Missing authorization code");
-          clearTimeout(timeout);
-          server.close();
-          reject(new Error("Missing authorization code"));
-          return;
-        }
-
-        res.writeHead(200, { "Content-Type": "text/html" });
-        res.end(`
-          <html>
-            <body>
-              <h1>Authorization successful!</h1>
-              <p>You can close this window and return to the terminal.</p>
-              <script>window.close();</script>
-            </body>
-          </html>
-        `);
-
-        clearTimeout(timeout);
-        server.close();
-        resolve(receivedCode);
-      });
-
-      server.listen(CALLBACK_PORT, () => {
-        openBrowser(authUrl);
-      });
-    });
-
+    // Exchange code for tokens
     const tokenParams = new URLSearchParams({
       grant_type: "authorization_code",
       code,
-      redirect_uri: `http://localhost:${CALLBACK_PORT}${CALLBACK_PATH}`,
+      redirect_uri: redirectUri,
       client_id: oauthConfig.clientId,
       code_verifier: codeVerifier,
     });

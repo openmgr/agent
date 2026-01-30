@@ -6,7 +6,7 @@ import {
   saveLocalConfig,
   getGlobalConfigPath,
   getLocalConfigPath,
-} from "@openmgr/agent-core";
+} from "@openmgr/agent-config-xdg";
 import { isLoggedIn } from "@openmgr/agent-auth-anthropic";
 
 export function registerConfigCommands(program: Command): void {

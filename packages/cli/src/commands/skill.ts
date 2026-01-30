@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import chalk from "chalk";
-import { SkillManager } from "@openmgr/agent-core";
+import { FilesystemSkillManager } from "@openmgr/agent-skills-loader";
 import { getBundledSkillsDir } from "@openmgr/agent-skills-bundled";
 
 export function registerSkillCommands(program: Command): void {
@@ -17,7 +17,7 @@ export function registerSkillCommands(program: Command): void {
       // Get bundled skills path from the skills-bundled package
       const bundledSkillsPath = getBundledSkillsDir();
       
-      const manager = new SkillManager(options.directory, {
+      const manager = new FilesystemSkillManager(options.directory, {
         additionalBundledPaths: [bundledSkillsPath],
       });
       await manager.discover();
@@ -89,7 +89,7 @@ export function registerSkillCommands(program: Command): void {
       // Get bundled skills path from the skills-bundled package
       const bundledSkillsPath = getBundledSkillsDir();
       
-      const manager = new SkillManager(options.directory, {
+      const manager = new FilesystemSkillManager(options.directory, {
         additionalBundledPaths: [bundledSkillsPath],
       });
       await manager.discover();
@@ -98,7 +98,7 @@ export function registerSkillCommands(program: Command): void {
         console.error(chalk.red(`Skill not found: ${name}`));
         const available = manager.getAvailable();
         if (available.length > 0) {
-          console.log(chalk.gray(`\nAvailable skills: ${available.map(s => s.name).join(", ")}`));
+          console.log(chalk.gray(`\nAvailable skills: ${available.map((s: { name: string }) => s.name).join(", ")}`));
         }
         process.exit(1);
       }
@@ -149,7 +149,7 @@ export function registerSkillCommands(program: Command): void {
       // Get bundled skills path from the skills-bundled package
       const bundledSkillsPath = getBundledSkillsDir();
       
-      const manager = new SkillManager(options.directory, {
+      const manager = new FilesystemSkillManager(options.directory, {
         additionalBundledPaths: [bundledSkillsPath],
       });
       const paths = manager.getPaths();

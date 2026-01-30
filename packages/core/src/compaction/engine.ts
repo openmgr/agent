@@ -1,4 +1,4 @@
-import { randomUUID } from "crypto";
+import { generateId } from "../utils/id.js";
 import type { Message, LLMProvider } from "../types.js";
 import type { CompactionConfig, CompactionResult, CompactionStats } from "./types.js";
 import { DEFAULT_COMPACTION_CONFIG, getModelLimit } from "./types.js";
@@ -114,7 +114,7 @@ export class CompactionEngine {
 
     const compactedTokens = estimateTokens(summary);
     const compressionRatio = originalTokens > 0 ? compactedTokens / originalTokens : 1;
-    const compactionId = randomUUID();
+    const compactionId = generateId();
 
     return {
       compactionId,
@@ -142,7 +142,7 @@ export class CompactionEngine {
     );
 
     const summaryMessage: Message = {
-      id: randomUUID(),
+      id: generateId(),
       role: "assistant",
       content: `[Previous conversation summary]\n\n${summary}`,
       createdAt: Date.now(),
