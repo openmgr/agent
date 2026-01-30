@@ -35,6 +35,25 @@ export { BaseLLMProvider, type ProviderOptions } from "./base.js";
 export type ProviderName = "anthropic" | "openai" | "google" | "openrouter" | "groq" | "xai";
 
 /**
+ * Mapping of providers to their small/fast models for lightweight tasks like title generation
+ */
+export const SMALL_MODELS: Record<ProviderName, string> = {
+  anthropic: "claude-3-5-haiku-20241022",
+  openai: "gpt-4o-mini",
+  google: "gemini-2.0-flash",
+  openrouter: "anthropic/claude-3-5-haiku", // OpenRouter uses provider/model format
+  groq: "llama-3.1-8b-instant",
+  xai: "grok-2-mini",
+};
+
+/**
+ * Get the small/fast model for a provider (for lightweight tasks like title generation)
+ */
+export function getSmallModel(provider: ProviderName): string {
+  return SMALL_MODELS[provider];
+}
+
+/**
  * Create a provider instance by name
  */
 export function createProvider(

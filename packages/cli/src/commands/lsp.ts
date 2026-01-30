@@ -1,4 +1,4 @@
-import { Command } from "commander";
+import type { Command } from "commander";
 import chalk from "chalk";
 import { existsSync } from "fs";
 import { resolve } from "path";

@@ -16,7 +16,8 @@
     "dev": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",
-    "clean": "rm -rf dist"
+    "test:coverage": "vitest run --coverage",
+    "clean": "rm -rf dist coverage"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.2",

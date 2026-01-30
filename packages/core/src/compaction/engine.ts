@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import type { Message, LLMProvider } from "../types.js";
 import type { CompactionConfig, CompactionResult, CompactionStats } from "./types.js";
 import { DEFAULT_COMPACTION_CONFIG, getModelLimit } from "./types.js";
-import { estimateTokens, estimateConversationTokens, estimateMessageTokens } from "./tokens.js";
+import { estimateTokens, estimateConversationTokens } from "./tokens.js";
 
 const SUMMARY_PROMPT = `You are a conversation summarizer. Summarize the following conversation history into a structured summary that captures all important context. 
 
@@ -91,14 +91,7 @@ export class CompactionEngine {
   }
 
   async compact(messages: Message[]): Promise<CompactionResult> {
-    const inceptionMessages = messages.slice(
-      0,
-      Math.min(this.config.inceptionCount, messages.length)
-    );
     const messagesToCompact = this.getMessagesToCompact(messages);
-    const workingMessages = messages.slice(
-      messages.length - this.config.workingWindowCount
-    );
 
     if (messagesToCompact.length === 0) {
       throw new Error("No messages to compact");
@@ -121,14 +114,6 @@ export class CompactionEngine {
 
     const compactedTokens = estimateTokens(summary);
     const compressionRatio = originalTokens > 0 ? compactedTokens / originalTokens : 1;
-
-    const summaryMessage: Message = {
-      id: randomUUID(),
-      role: "assistant",
-      content: `[Previous conversation summary]\n\n${summary}`,
-      createdAt: Date.now(),
-    };
-
     const compactionId = randomUUID();
 
     return {

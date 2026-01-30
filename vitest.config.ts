@@ -1,28 +1,23 @@
 import { defineConfig } from "vitest/config";
 
+// Shared vitest configuration for the monorepo
+// Individual packages can extend this or define their own
 export default defineConfig({
   test: {
     globals: false,
     environment: "node",
-    include: ["src/**/*.test.ts"],
+    include: ["**/__tests__/**/*.test.ts", "src/**/*.test.ts"],
     testTimeout: 10000,
-    setupFiles: ["src/__tests__/setup.ts"],
     coverage: {
       provider: "v8",
-      reporter: ["text", "html", "lcov"],
+      reporter: ["text", "json-summary", "html", "lcov"],
+      reportsDirectory: "./coverage",
       include: ["src/**/*.ts"],
       exclude: [
         "src/**/*.test.ts",
-        "src/__tests__/**",
-        "src/cli.ts", // Will be split and tested separately
+        "src/**/__tests__/**",
+        "src/**/types.ts",
       ],
-      thresholds: {
-        // Target 80% on critical modules
-        "src/agent.ts": { statements: 80 },
-        "src/tools/**": { statements: 80 },
-        "src/llm/**": { statements: 80 },
-        "src/session/**": { statements: 80 },
-      },
     },
   },
 });

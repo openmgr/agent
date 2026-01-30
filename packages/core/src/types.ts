@@ -214,6 +214,23 @@ export const AgentEventSchema = z.discriminatedUnion("type", [
     command: z.string(),
     description: z.string(),
   }),
+  // Tool permission events
+  z.object({
+    type: z.literal("tool.permission.request"),
+    messageId: z.string(),
+    toolCall: ToolCallSchema,
+  }),
+  z.object({
+    type: z.literal("tool.permission.granted"),
+    messageId: z.string(),
+    toolName: z.string(),
+    allowAlways: z.boolean(),
+  }),
+  z.object({
+    type: z.literal("tool.permission.denied"),
+    messageId: z.string(),
+    toolName: z.string(),
+  }),
 ]);
 export type AgentEvent = z.infer<typeof AgentEventSchema>;
 

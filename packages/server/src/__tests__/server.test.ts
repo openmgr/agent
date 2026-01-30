@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createServer, serverPlugin } from '../index.js';
 import type { AgentInterface, AgentConfig } from '@openmgr/agent-core';
+import type { SessionManager } from '@openmgr/agent-storage';
 
 // Create a minimal mock agent
 function createMockAgent(): AgentInterface {
@@ -121,7 +122,7 @@ describe('createServer', () => {
       const sessions = createMockSessionManager();
       sessions._addSession('sess-1', 'Test Session');
       
-      const app = createServer({ agent, sessions: sessions as unknown as import('@openmgr/agent-storage').SessionManager });
+      const app = createServer({ agent, sessions: sessions as unknown as SessionManager });
       
       const req = new Request('http://localhost/beta/conversations');
       const res = await app.fetch(req);
@@ -139,7 +140,7 @@ describe('createServer', () => {
       const sessions = createMockSessionManager();
       sessions._addSession('sess-1', 'Test Session');
       
-      const app = createServer({ agent, sessions: sessions as unknown as import('@openmgr/agent-storage').SessionManager });
+      const app = createServer({ agent, sessions: sessions as unknown as SessionManager });
       
       const req = new Request('http://localhost/beta/conversations/sess-1');
       const res = await app.fetch(req);
@@ -155,7 +156,7 @@ describe('createServer', () => {
       const agent = createMockAgent();
       const sessions = createMockSessionManager();
       
-      const app = createServer({ agent, sessions: sessions as unknown as import('@openmgr/agent-storage').SessionManager });
+      const app = createServer({ agent, sessions: sessions as unknown as SessionManager });
       
       const req = new Request('http://localhost/beta/conversations/non-existent');
       const res = await app.fetch(req);
@@ -174,7 +175,7 @@ describe('createServer', () => {
         { role: 'assistant', content: 'Hi there!' },
       ]);
       
-      const app = createServer({ agent, sessions: sessions as unknown as import('@openmgr/agent-storage').SessionManager });
+      const app = createServer({ agent, sessions: sessions as unknown as SessionManager });
       
       const req = new Request('http://localhost/beta/conversations/sess-1/messages');
       const res = await app.fetch(req);
@@ -191,7 +192,7 @@ describe('createServer', () => {
       const sessions = createMockSessionManager();
       sessions._addSession('sess-1', 'Test Session');
       
-      const app = createServer({ agent, sessions: sessions as unknown as import('@openmgr/agent-storage').SessionManager });
+      const app = createServer({ agent, sessions: sessions as unknown as SessionManager });
       
       const req = new Request('http://localhost/beta/conversations/sess-1', { method: 'DELETE' });
       const res = await app.fetch(req);

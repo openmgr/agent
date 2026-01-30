@@ -1,4 +1,4 @@
-import { Command } from "commander";
+import type { Command } from "commander";
 import chalk from "chalk";
 import { SessionManager, getDb, closeDb } from "@openmgr/agent-storage";
 import type { SessionRow } from "@openmgr/agent-storage";

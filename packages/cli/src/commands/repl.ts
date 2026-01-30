@@ -1,4 +1,4 @@
-import { Command } from "commander";
+import type { Command } from "commander";
 import chalk from "chalk";
 import * as readline from "readline";
 import { Agent } from "@openmgr/agent-core";
@@ -126,7 +126,7 @@ export function registerReplCommand(program: Command): void {
                 spinner.update(`Running ${event.toolCall.name}`);
                 spinner.start();
                 break;
-              case "tool.complete":
+              case "tool.complete": {
                 spinner.stop();
                 const preview = String(event.toolResult.result).slice(0, 200);
                 const truncated =
@@ -137,6 +137,7 @@ export function registerReplCommand(program: Command): void {
                 spinner.update("Thinking");
                 spinner.start();
                 break;
+              }
               case "error":
                 debug.log("error", "Agent error", event.error);
                 break;

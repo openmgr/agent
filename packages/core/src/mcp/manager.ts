@@ -94,6 +94,7 @@ export class McpManager extends EventEmitter<McpManagerEvents> {
     try {
       await client.disconnect();
     } catch {
+      // Ignore disconnect errors - server may already be disconnected
     }
 
     this.clients.delete(name);

@@ -9,12 +9,17 @@
     "test": "pnpm -r test",
     "test:watch": "pnpm -r --parallel test:watch",
     "test:coverage": "pnpm -r test:coverage",
-    "lint": "pnpm -r lint",
+    "lint": "eslint packages/*/src/**/*.ts",
+    "lint:fix": "eslint packages/*/src/**/*.ts --fix",
     "clean": "pnpm -r clean && rm -rf node_modules"
   },
   "devDependencies": {
     "@types/node": "^22.19.7",
+    "@typescript-eslint/eslint-plugin": "^8.54.0",
+    "@typescript-eslint/parser": "^8.54.0",
     "@vitest/coverage-v8": "^4.0.18",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
     "typescript": "^5.6.0",
     "vitest": "^4.0.18"
   },

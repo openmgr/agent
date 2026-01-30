@@ -79,6 +79,8 @@ import {
 } from "@openmgr/agent-providers";
 ```
 
+See [providers documentation](./packages/providers.md) for detailed API reference.
+
 ## Tool Packages
 
 ### @openmgr/agent-tools
@@ -189,6 +191,8 @@ const results = await memory.search({
 });
 ```
 
+See [memory documentation](./packages/memory.md) for detailed API reference.
+
 ## Authentication
 
 ### @openmgr/agent-auth-anthropic
@@ -287,6 +291,8 @@ const manager = new LspManager({
 await manager.start();
 const diagnostics = await manager.getDiagnostics("/path/to/file.ts");
 ```
+
+See [LSP documentation](./packages/lsp.md) for detailed API reference.
 
 ## CLI
 

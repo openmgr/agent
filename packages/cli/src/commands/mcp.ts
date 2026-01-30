@@ -1,4 +1,4 @@
-import { Command } from "commander";
+import type { Command } from "commander";
 import chalk from "chalk";
 import { McpManager, loadConfig } from "@openmgr/agent-core";
 

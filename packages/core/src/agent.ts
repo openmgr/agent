@@ -33,6 +33,12 @@ import type {
 import { DEFAULT_SYSTEM_PROMPT } from "./types.js";
 import type { McpServerConfig } from "./mcp/types.js";
 import type { AgentPlugin, ProviderOptions } from "./plugin.js";
+import {
+  ToolPermissionManager,
+  type ToolPermissionConfig,
+  type PermissionRequestCallback,
+  type PermissionResponse,
+} from "./permissions.js";
 
 export interface AgentOptions {
   provider?: string;
@@ -44,6 +50,7 @@ export interface AgentOptions {
   skipConfigLoad?: boolean;
   mcp?: Record<string, McpServerConfig>;
   compaction?: Partial<CompactionConfig>;
+  permissions?: ToolPermissionConfig;
   maxTokens?: number;
   temperature?: number;
 }
@@ -75,7 +82,14 @@ export class Agent extends EventEmitter<{
   private plugins: Map<string, AgentPlugin> = new Map();
   private extensions: Map<string, unknown> = new Map();
 
-  constructor(config: AgentConfig, compactionConfig?: Partial<CompactionConfig>) {
+  // Tool permissions
+  private permissionManager: ToolPermissionManager;
+
+  constructor(
+    config: AgentConfig, 
+    compactionConfig?: Partial<CompactionConfig>,
+    permissionConfig?: ToolPermissionConfig
+  ) {
     super();
     this.config = {
       ...config,
@@ -99,6 +113,9 @@ export class Agent extends EventEmitter<{
         this.compactionConfig
       );
     }
+
+    // Initialize permission manager
+    this.permissionManager = new ToolPermissionManager(permissionConfig);
     
     // Register built-in commands once
     if (!builtinCommandsRegistered) {
@@ -348,6 +365,52 @@ export class Agent extends EventEmitter<{
   }
 
   // ============================================================================
+  // Tool Permissions
+  // ============================================================================
+
+  /**
+   * Get the permission manager
+   */
+  getPermissionManager(): ToolPermissionManager {
+    return this.permissionManager;
+  }
+
+  /**
+   * Set the callback for requesting user permission for tool execution
+   */
+  setPermissionRequestCallback(callback: PermissionRequestCallback | null): void {
+    this.permissionManager.setRequestCallback(callback);
+  }
+
+  /**
+   * Update the permission configuration
+   */
+  updatePermissionConfig(config: Partial<ToolPermissionConfig>): void {
+    this.permissionManager.updateConfig(config);
+  }
+
+  /**
+   * Allow a tool for the current session
+   */
+  allowToolForSession(toolName: string): void {
+    this.permissionManager.allowForSession(toolName);
+  }
+
+  /**
+   * Deny a tool for the current session
+   */
+  denyToolForSession(toolName: string): void {
+    this.permissionManager.denyForSession(toolName);
+  }
+
+  /**
+   * Clear all session-level tool permissions
+   */
+  clearToolPermissions(): void {
+    this.permissionManager.clearSessionPermissions();
+  }
+
+  // ============================================================================
   // Static Factory
   // ============================================================================
 
@@ -359,7 +422,7 @@ export class Agent extends EventEmitter<{
         ? { type: "api-key", apiKey: options.apiKey }
         : { type: "oauth" };
 
-      return new Agent(
+      const agent = new Agent(
         {
           provider: options.provider ?? "anthropic",
           model: options.model ?? "claude-sonnet-4-20250514",
@@ -370,8 +433,10 @@ export class Agent extends EventEmitter<{
           maxTokens: options.maxTokens,
           temperature: options.temperature,
         },
-        options.compaction
+        options.compaction,
+        options.permissions
       );
+      return agent;
     }
 
     const config = await loadConfig(workingDirectory, {
@@ -395,7 +460,8 @@ export class Agent extends EventEmitter<{
         maxTokens: config.maxTokens,
         temperature: config.temperature,
       },
-      options.compaction
+      options.compaction,
+      options.permissions
     );
 
     const mcpConfig = options.mcp ?? config.mcp;
@@ -675,31 +741,56 @@ export class Agent extends EventEmitter<{
           isError: true,
         };
       } else {
-        try {
-          const parseResult = tool.parameters.safeParse(toolCall.arguments);
-          if (!parseResult.success) {
-            result = {
-              id: toolCall.id,
-              name: toolCall.name,
-              result: `Invalid parameters: ${parseResult.error.message}`,
-              isError: true,
-            };
-          } else {
-            const execResult = await tool.execute(parseResult.data, ctx);
-            result = {
-              id: toolCall.id,
-              name: toolCall.name,
-              result: execResult.output,
-              isError: !!execResult.metadata?.error,
-            };
-          }
-        } catch (err) {
+        // Check permission before executing
+        const decision = this.permissionManager.getPermissionDecision(toolCall.name);
+        
+        if (decision === "deny") {
+          // Tool is denied by configuration
+          this.emit("event", {
+            type: "tool.permission.denied",
+            messageId,
+            toolName: toolCall.name,
+          });
           result = {
             id: toolCall.id,
             name: toolCall.name,
-            result: `Tool execution error: ${(err as Error).message}`,
+            result: `Tool "${toolCall.name}" is not permitted`,
             isError: true,
           };
+        } else if (decision === "ask") {
+          // Need to ask for permission
+          this.emit("event", {
+            type: "tool.permission.request",
+            messageId,
+            toolCall,
+          });
+          
+          const permitted = await this.permissionManager.checkPermission(toolCall);
+          
+          if (permitted) {
+            this.emit("event", {
+              type: "tool.permission.granted",
+              messageId,
+              toolName: toolCall.name,
+              allowAlways: this.permissionManager.isAllowedForSession(toolCall.name),
+            });
+            result = await this.executeSingleTool(tool, toolCall, ctx);
+          } else {
+            this.emit("event", {
+              type: "tool.permission.denied",
+              messageId,
+              toolName: toolCall.name,
+            });
+            result = {
+              id: toolCall.id,
+              name: toolCall.name,
+              result: `Tool "${toolCall.name}" execution denied by user`,
+              isError: true,
+            };
+          }
+        } else {
+          // Permission granted by config or session
+          result = await this.executeSingleTool(tool, toolCall, ctx);
         }
       }
 
@@ -712,6 +803,38 @@ export class Agent extends EventEmitter<{
     }
 
     return results;
+  }
+
+  private async executeSingleTool(
+    tool: { parameters: { safeParse: (args: unknown) => { success: boolean; data?: unknown; error?: { message: string } } }; execute: (data: unknown, ctx: ToolContext) => Promise<{ output: unknown; metadata?: { error?: boolean } }> },
+    toolCall: ToolCall,
+    ctx: ToolContext
+  ): Promise<ToolResult> {
+    try {
+      const parseResult = tool.parameters.safeParse(toolCall.arguments);
+      if (!parseResult.success) {
+        return {
+          id: toolCall.id,
+          name: toolCall.name,
+          result: `Invalid parameters: ${parseResult.error?.message}`,
+          isError: true,
+        };
+      }
+      const execResult = await tool.execute(parseResult.data, ctx);
+      return {
+        id: toolCall.id,
+        name: toolCall.name,
+        result: execResult.output,
+        isError: !!execResult.metadata?.error,
+      };
+    } catch (err) {
+      return {
+        id: toolCall.id,
+        name: toolCall.name,
+        result: `Tool execution error: ${(err as Error).message}`,
+        isError: true,
+      };
+    }
   }
 
   private buildLLMMessages(): LLMMessage[] {

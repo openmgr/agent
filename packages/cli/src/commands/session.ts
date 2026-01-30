@@ -1,9 +1,9 @@
-import { Command } from "commander";
+import type { Command } from "commander";
 import chalk from "chalk";
 import * as readline from "readline";
 import * as path from "path";
 import { SessionManager, getDb, closeDb } from "@openmgr/agent-storage";
-import type { SessionRow, MessageRow } from "@openmgr/agent-storage";
+import type { SessionRow } from "@openmgr/agent-storage";
 
 export function registerSessionCommands(program: Command): void {
   const sessionCmd = program

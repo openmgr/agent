@@ -142,3 +142,23 @@ export { BaseLLMProvider } from "./llm/provider.js";
 
 // Built-in commands
 export { registerBuiltinCommands } from "./commands/builtin.js";
+
+// Title generation
+export { generateTitle, isDefaultTitle } from "./title.js";
+export type { TitleGeneratorOptions } from "./title.js";
+
+// Tool Permissions
+export {
+  ToolPermissionManager,
+  SAFE_READ_TOOLS,
+  WRITE_TOOLS,
+  createReadOnlyConfig,
+  createStrictConfig,
+  createPermissiveConfig,
+} from "./permissions.js";
+export type {
+  ToolPermissionConfig,
+  PermissionDecision,
+  PermissionResponse,
+  PermissionRequestCallback,
+} from "./permissions.js";

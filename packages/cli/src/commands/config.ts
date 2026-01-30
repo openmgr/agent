@@ -1,9 +1,7 @@
-import { Command } from "commander";
+import type { Command } from "commander";
 import chalk from "chalk";
 import {
   loadConfig,
-  loadGlobalConfig,
-  loadLocalConfig,
   saveGlobalConfig,
   saveLocalConfig,
   getGlobalConfigPath,
