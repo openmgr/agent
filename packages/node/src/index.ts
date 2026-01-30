@@ -6,6 +6,7 @@
  * - XDG filesystem configuration
  * - Filesystem-based skill loading
  * - Stdio MCP client
+ * - Environment variable support for API keys
  *
  * Use this package when running in Node.js. For React Native or browser environments,
  * use @openmgr/agent-core directly with custom implementations.
@@ -13,6 +14,20 @@
 
 // Re-export everything from core
 export * from "@openmgr/agent-core";
+
+// Re-export providers (selectively to avoid conflicts with core exports)
+export {
+  AnthropicProvider,
+  OpenAIProvider,
+  GoogleProvider,
+  OpenRouterProvider,
+  GroqProvider,
+  XAIProvider,
+  createProvider,
+  providersPlugin,
+  getSmallModel,
+  SMALL_MODELS,
+} from "@openmgr/agent-providers";
 
 // Re-export Node.js-specific implementations
 export {
@@ -51,6 +66,8 @@ import {
   Agent,
   SseMcpClient,
   type AgentOptions,
+  type AgentPlugin,
+  type LLMProvider,
   type McpServerConfig,
   type McpClientInterface,
   type McpClientFactory,
@@ -58,8 +75,147 @@ import {
   type McpStdioConfig,
 } from "@openmgr/agent-core";
 import { loadConfig } from "@openmgr/agent-config-xdg";
+import {
+  AnthropicProvider,
+  OpenAIProvider,
+  GoogleProvider,
+  OpenRouterProvider,
+  GroqProvider,
+  XAIProvider,
+  type ProviderOptions,
+  type ProviderName,
+} from "@openmgr/agent-providers";
 import { FilesystemSkillManager } from "@openmgr/agent-skills-loader";
 import { StdioMcpClient } from "@openmgr/agent-mcp-stdio";
+
+// =============================================================================
+// Environment Variable Mappings
+// =============================================================================
+
+/**
+ * Environment variable names for each provider's API key
+ */
+export const PROVIDER_ENV_VARS: Record<ProviderName, string[]> = {
+  anthropic: ["ANTHROPIC_API_KEY"],
+  openai: ["OPENAI_API_KEY"],
+  google: ["GOOGLE_GENERATIVE_AI_API_KEY", "GOOGLE_API_KEY"],
+  openrouter: ["OPENROUTER_API_KEY"],
+  groq: ["GROQ_API_KEY"],
+  xai: ["XAI_API_KEY"],
+};
+
+/**
+ * Get API key from environment variables for a provider
+ */
+export function getApiKeyFromEnv(provider: ProviderName): string | undefined {
+  const envVars = PROVIDER_ENV_VARS[provider];
+  for (const envVar of envVars) {
+    const value = process.env[envVar];
+    if (value) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Resolve provider options with environment variable fallback for API key
+ */
+export function resolveProviderOptions(
+  provider: ProviderName,
+  options: ProviderOptions = {}
+): ProviderOptions {
+  if (options.apiKey || options.auth?.apiKey) {
+    return options;
+  }
+  
+  const envApiKey = getApiKeyFromEnv(provider);
+  if (envApiKey) {
+    return {
+      ...options,
+      apiKey: envApiKey,
+    };
+  }
+  
+  return options;
+}
+
+// =============================================================================
+// Node.js Provider Factory (with env var support)
+// =============================================================================
+
+/**
+ * Create a provider instance by name with Node.js environment variable support.
+ * 
+ * This function will automatically look up API keys from environment variables
+ * if not provided in options:
+ * - ANTHROPIC_API_KEY for anthropic
+ * - OPENAI_API_KEY for openai
+ * - GOOGLE_GENERATIVE_AI_API_KEY or GOOGLE_API_KEY for google
+ * - OPENROUTER_API_KEY for openrouter
+ * - GROQ_API_KEY for groq
+ * - XAI_API_KEY for xai
+ */
+export function createNodeProvider(
+  provider: ProviderName,
+  options: ProviderOptions = {}
+): LLMProvider {
+  const resolvedOptions = resolveProviderOptions(provider, options);
+  
+  switch (provider) {
+    case "anthropic":
+      return new AnthropicProvider(resolvedOptions);
+    case "openai":
+      return new OpenAIProvider(resolvedOptions);
+    case "google":
+      return new GoogleProvider(resolvedOptions);
+    case "openrouter":
+      return new OpenRouterProvider(resolvedOptions);
+    case "groq":
+      return new GroqProvider(resolvedOptions);
+    case "xai":
+      return new XAIProvider(resolvedOptions);
+    default:
+      throw new Error(`Unknown provider: ${provider}`);
+  }
+}
+
+/**
+ * Plugin that registers all LLM providers with Node.js environment variable support.
+ * 
+ * Use this plugin instead of providersPlugin from @openmgr/agent-providers
+ * to get automatic API key resolution from environment variables.
+ */
+export const nodeProvidersPlugin: AgentPlugin = {
+  name: "@openmgr/agent-node/providers",
+  version: "0.1.0",
+  providers: [
+    {
+      name: "anthropic",
+      factory: (options: ProviderOptions) => createNodeProvider("anthropic", options),
+    },
+    {
+      name: "openai",
+      factory: (options: ProviderOptions) => createNodeProvider("openai", options),
+    },
+    {
+      name: "google",
+      factory: (options: ProviderOptions) => createNodeProvider("google", options),
+    },
+    {
+      name: "openrouter",
+      factory: (options: ProviderOptions) => createNodeProvider("openrouter", options),
+    },
+    {
+      name: "groq",
+      factory: (options: ProviderOptions) => createNodeProvider("groq", options),
+    },
+    {
+      name: "xai",
+      factory: (options: ProviderOptions) => createNodeProvider("xai", options),
+    },
+  ],
+};
 
 /**
  * Create an MCP client for Node.js environments.

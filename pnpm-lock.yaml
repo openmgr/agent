@@ -357,6 +357,9 @@ importers:
       '@openmgr/agent-mcp-stdio':
         specifier: workspace:*
         version: link:../mcp-stdio
+      '@openmgr/agent-providers':
+        specifier: workspace:*
+        version: link:../providers
       '@openmgr/agent-skills-loader':
         specifier: workspace:*
         version: link:../skills-loader
